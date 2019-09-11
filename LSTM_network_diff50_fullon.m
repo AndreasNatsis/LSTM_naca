@@ -1,58 +1,69 @@
 clearvars -except SD_dat
+%%%%%%%%%%% CASE PARAMETERS %%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+step = 2;                                         % take every second point on the readings
+prognose_time =500/step;                          % milliseconds
+input_variables = [ 3:22 ];                       % how many variables are taken into account (LSTM)
+inputSize = size(input_variables,2);              % how many variables for input (pressure/IMU)
+                                                  % 8 pressure / 2*6 IMUs
+numHiddenUnits = 30;                             % LSTM neurons per layer
+numHiddenUnits1 = 30;                            %
+numHiddenUnits2 = 30;                            %                                     
+                                                 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-data = table2array(SD_dat);
-offset_values =[0  mean(data(1:30000,2:22))];
+input_data = table2array(SD_dat);
+offset_values =[0  mean(input_data(1:30000,2:22))];
 for i=2:22
-    data(:,i)=data(:,i)-offset_values(i);
+    input_data(:,i)=input_data(:,i)-offset_values(i);
 end
 
-data(:,1) = round(data(:,1)/1000);
+input_data(:,1) = round(input_data(:,1)/1000);
 
-colmin = min(data)
-colmax = max(data);
-pr_data = rescale(data,'InputMin',colmin,'InputMax',colmax);
-pr_data(:,1) =data(:,1);
+colmin = min(input_data);
+colmax = max(input_data);
+pr_data = rescale(input_data,'InputMin',colmin,'InputMax',colmax);
+
+pr_data(:,1) =input_data(:,1); %% ignore scaling for the first column/time
 
 sd_array =pr_data';
 
 
-step = 2;
-encoder = sd_array(2,1:step:end)';
-data = sd_array(3:22,1:step:end);
+
+target_encoder = sd_array(2,1:step:end)';
+input_data = sd_array(3:22,1:step:end);
 
 SampleRate = 1000/step;
 %%Filter podition signal (degrees)
-df = designfilt('lowpassfir','FilterOrder',100,'CutoffFrequency',1,'SampleRate',SampleRate);
-encoder_filtered = filtfilt(df,encoder);
+df = designfilt('lowpassfir','FilterOrder',150,'CutoffFrequency',10/SampleRate,'SampleRate',SampleRate);
+target_encoder_filtered = filtfilt(df,target_encoder);
 
-prognose_time =500/step; % milliseconds
-for i = prognose_time+1:size(encoder_filtered,2)
-    diff_encoder (i)= encoder_filtered(i)-encoder_filtered(i-prognose_time);
+
+for i = prognose_time+1:size(target_encoder_filtered,1)
+    target_diff_encoder_filtered(i)= target_encoder_filtered(i)-target_encoder_filtered(i-prognose_time);
 end
 
 
 
-diff_encoder_filtered = rescale(diff_encoder);
+target_diff_encoder_filtered_rescaled = rescale(target_diff_encoder_filtered);
 %data(1,:)=Ang_acceleration;
 
 
-numTimeStepsTrain = floor(0.60*size(data,2));
-numTimeStepsValid= floor(0.1*size(data,2));
-numTimeStepsTest = size(data,2)-numTimeStepsTrain-numTimeStepsValid;
+numTimeStepsTrain = floor(0.60*size(input_data,2));
+numTimeStepsValid= floor(0.1*size(input_data,2));
+numTimeStepsTest = size(input_data,2)-numTimeStepsTrain-numTimeStepsValid;
 
-XTrain = data(:,1:numTimeStepsTrain);
+XTrain = input_data(:,1:numTimeStepsTrain);
 
-YTrain = diff_encoder_filtered(1,prognose_time + 1:numTimeStepsTrain+prognose_time);
+YTrain = target_diff_encoder_filtered_rescaled(1,prognose_time + 1:numTimeStepsTrain+prognose_time);
 
 
-XValidation = data(:,numTimeStepsTrain+1:end-prognose_time-numTimeStepsTest);
-YValidation = diff_encoder_filtered(1,numTimeStepsTrain+prognose_time+1:end-numTimeStepsTest);
+XValidation = input_data(:,numTimeStepsTrain+1:end-prognose_time-numTimeStepsTest);
+YValidation = target_diff_encoder_filtered_rescaled(1,numTimeStepsTrain+prognose_time+1:end-numTimeStepsTest);
 
-XTest = data(:,numTimeStepsTrain+numTimeStepsValid+1:end-prognose_time);
-YTest = diff_encoder_filtered(1,numTimeStepsTrain+numTimeStepsValid+prognose_time+1:end);
+XTest = input_data(:,numTimeStepsTrain+numTimeStepsValid+1:end-prognose_time);
+YTest = target_diff_encoder_filtered_rescaled(1,numTimeStepsTrain+numTimeStepsValid+prognose_time+1:end);
 
 % mu = mean(XTrain,2);
 % sig = std(XTrain,0,2);
@@ -68,11 +79,9 @@ YTest = diff_encoder_filtered(1,numTimeStepsTrain+numTimeStepsValid+prognose_tim
 %% Define LSTM Network Architecture
 % Create an LSTM regression network. Specify the LSTM layer to have 200 hidden units.
 
-inputSize = 20;
+
 numResponses = 1;
-numHiddenUnits = 130;
-numHiddenUnits1 = 130;
-numHiddenUnits2 = 130;
+
 
 layers = [ ...
     sequenceInputLayer(inputSize)
