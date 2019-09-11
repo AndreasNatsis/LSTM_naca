@@ -6,9 +6,9 @@ prognose_time =500/step;                          % milliseconds
 input_variables = [ 3:22 ];                       % how many variables are taken into account (LSTM)
 inputSize = size(input_variables,2);              % how many variables for input (pressure/IMU)
                                                   % 8 pressure / 2*6 IMUs
-numHiddenUnits = 30;                             % LSTM neurons per layer
-numHiddenUnits1 = 30;                            %
-numHiddenUnits2 = 30;                            %                                     
+numHiddenUnits = 30;                              % LSTM neurons per layer
+numHiddenUnits1 = 30;                             %
+numHiddenUnits2 = 30;                             %                                     
                                                  
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
